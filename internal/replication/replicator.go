@@ -416,8 +416,16 @@ func (r *Replicator) ReadWithQuorum(key string) (*storage.StorageValue, error) {
 func (r *Replicator) HandleReplicationRequest(req *ReplicationRequest) *ReplicationResponse {
 	switch req.Operation {
 	case "put":
-		// Store the data locally
-		err := r.storage.Put(req.Key, req.Value)
+		// Store the data using replicated method to avoid duplicate events
+		var err error
+		if req.SourceEvent != nil {
+			// Use the source event to avoid creating duplicate events
+			err = r.storage.PutReplicated(req.Key, req.Value, req.SourceEvent)
+		} else {
+			// Fallback to regular put if no source event
+			err = r.storage.Put(req.Key, req.Value)
+		}
+		
 		if err != nil {
 			return &ReplicationResponse{
 				Success:   false,
@@ -443,7 +451,16 @@ func (r *Replicator) HandleReplicationRequest(req *ReplicationRequest) *Replicat
 		}
 
 	case "delete":
-		err := r.storage.Delete(req.Key)
+		// Delete using replicated method to avoid duplicate events
+		var err error
+		if req.SourceEvent != nil {
+			// Use the source event to avoid creating duplicate events
+			err = r.storage.DeleteReplicated(req.Key, req.SourceEvent)
+		} else {
+			// Fallback to regular delete if no source event
+			err = r.storage.Delete(req.Key)
+		}
+		
 		if err != nil {
 			return &ReplicationResponse{
 				Success:   false,
@@ -479,7 +496,108 @@ func (r *Replicator) HandleReplicationRequest(req *ReplicationRequest) *Replicat
 	}
 }
 
+// DeleteWithReplication deletes data with replication and vector clock sync
+func (r *Replicator) DeleteWithReplication(key string) (*WriteResult, error) {
+	// Check if we have enough alive nodes for quorum
+	aliveNodes := r.getAliveNodes()
+	if len(aliveNodes) < r.quorumSize {
+		return &WriteResult{
+			Key:              key,
+			Value:            "",
+			SuccessfulNodes:  []string{},
+			FailedNodes:      []string{},
+			ReplicationLevel: len(aliveNodes),
+			QuorumAchieved:   false,
+		}, fmt.Errorf("insufficient alive nodes: have %d, need %d for quorum", len(aliveNodes), r.quorumSize)
+	}
+
+	fmt.Printf("🗑️ Delete attempt: %d alive nodes, need %d for quorum\n", len(aliveNodes), r.quorumSize)
+
+	// Delete locally first and get the event
+	err := r.storage.Delete(key)
+	if err != nil {
+		return nil, fmt.Errorf("local delete failed: %v", err)
+	}
+
+	// Get the event that was just created for this delete
+	eventLog := r.storage.GetEventLog()
+	var sourceEvent *storage.Event
+	if len(eventLog.Events) > 0 {
+		sourceEvent = eventLog.Events[len(eventLog.Events)-1] // Get the latest event
+	}
+
+	successfulNodes := []string{r.currentNode.ID}
+	failedNodes := []string{}
+
+	// Get target nodes for replication
+	targetNodes := r.ring.GetNodesForKey(key, r.replicationFactor)
+
+	// Replicate delete to other nodes with vector clock sync
+	for _, targetNode := range targetNodes {
+		if targetNode.ID == r.currentNode.ID {
+			continue // Skip self
+		}
+
+		// Only replicate to alive nodes
+		if !r.isNodeAlive(targetNode.ID) {
+			failedNodes = append(failedNodes, targetNode.ID)
+			continue
+		}
+
+		// Create replication request with vector clock info
+		request := ReplicationRequest{
+			Key:         key,
+			Value:       "", // Empty for delete
+			Operation:   "delete",
+			SourceNode:  r.currentNode.ID,
+			Timestamp:   time.Now().Unix(),
+			EventLog:    eventLog,
+			VectorClock: eventLog.Current,
+			SourceEvent: sourceEvent,
+		}
+
+		success := r.replicateToNode(targetNode, &request)
+		if success {
+			successfulNodes = append(successfulNodes, targetNode.ID)
+		} else {
+			failedNodes = append(failedNodes, targetNode.ID)
+		}
+	}
+
+	quorumAchieved := len(successfulNodes) >= r.quorumSize
+
+	return &WriteResult{
+		Key:              key,
+		Value:            "",
+		SuccessfulNodes:  successfulNodes,
+		FailedNodes:      failedNodes,
+		ReplicationLevel: len(successfulNodes),
+		QuorumAchieved:   quorumAchieved,
+	}, nil
+}
+
 // Stop stops the health monitoring
+// MarkNodeAlive marks a node as alive in the health system (used by gossip discovery)
+func (r *Replicator) MarkNodeAlive(nodeID string) {
+	r.healthMutex.Lock()
+	defer r.healthMutex.Unlock()
+
+	health, exists := r.nodeHealth[nodeID]
+	if !exists {
+		health = &HealthStatus{
+			NodeID: nodeID,
+		}
+		r.nodeHealth[nodeID] = health
+	}
+
+	health.IsAlive = true
+	health.LastChecked = time.Now()
+	health.FailureCount = 0
+	health.ResponseTime = 0
+
+	fmt.Printf("💚 Node %s marked as alive via gossip discovery\n", nodeID)
+}
+
 func (r *Replicator) Stop() {
 	close(r.stopHealthCheck)
 	if r.healthTicker != nil {

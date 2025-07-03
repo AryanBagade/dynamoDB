@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -131,7 +132,7 @@ func (h *Handler) GetData(c *gin.Context) {
 	})
 }
 
-// DeleteData deletes a key-value pair
+// DeleteData deletes a key-value pair with replication
 func (h *Handler) DeleteData(c *gin.Context) {
 	key := c.Param("key")
 
@@ -147,19 +148,32 @@ func (h *Handler) DeleteData(c *gin.Context) {
 		return
 	}
 
-	// Delete from local storage
-	err = h.storage.Delete(key)
+	// Use replication system for distributed delete with vector clock sync
+	result, err := h.replicator.DeleteWithReplication(key)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":  err.Error(),
+			"result": result,
+		})
 		return
 	}
 
-	// TODO: Implement distributed delete with replication
+	// Find which node should handle this key
+	responsibleNode := h.ring.GetNodeForKey(key)
+	replicationNodes := h.ring.GetNodesForKey(key, 3)
+
+	// Get the current vector clock state after the delete
+	eventLog := h.storage.GetEventLog()
 
 	c.JSON(http.StatusOK, gin.H{
-		"key":       key,
-		"message":   "Key deleted successfully",
-		"timestamp": time.Now().Unix(),
+		"key":                key,
+		"message":            "Key deleted successfully",
+		"responsible_node":   responsibleNode.ID,
+		"replication_nodes":  getNodeIDs(replicationNodes),
+		"replication_result": result,
+		"vector_clock":       eventLog.Current,
+		"event_count":        len(eventLog.Events),
+		"timestamp":          time.Now().Unix(),
 	})
 }
 
@@ -614,24 +628,40 @@ func (h *Handler) SyncVectorClocks(c *gin.Context) {
 
 // fetchMerkleTreeFromNode makes HTTP request to get Merkle tree from another node
 func (h *Handler) fetchMerkleTreeFromNode(targetNode *node.Node) (*storage.MerkleTree, error) {
-	// In a production system, we'd make an HTTP request like:
-	// url := fmt.Sprintf("http://%s/api/v1/merkle-tree", targetNode.Address)
-	// For now, this is a placeholder that returns an empty tree
-	emptyTree := &storage.MerkleTree{
-		NodeID:    targetNode.ID,
-		Timestamp: time.Now().Unix(),
-		KeyCount:  0,
-		TreeDepth: 1,
-		Leaves:    make([]*storage.MerkleNode, 0),
-		Root: &storage.MerkleNode{
-			Hash:     "empty",
-			IsLeaf:   true,
-			Level:    0,
-			Position: 0,
-		},
+	// Make actual HTTP request to target node
+	url := fmt.Sprintf("http://%s/api/v1/merkle-tree", targetNode.Address)
+	
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch Merkle tree from %s: %v", targetNode.ID, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch Merkle tree from %s: HTTP %d", targetNode.ID, resp.StatusCode)
 	}
 
-	return emptyTree, nil
+	// Parse the response
+	var response struct {
+		MerkleTree *storage.MerkleTree `json:"merkle_tree"`
+		Message    string              `json:"message"`
+		Timestamp  int64               `json:"timestamp"`
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode Merkle tree response from %s: %v", targetNode.ID, err)
+	}
+
+	if response.MerkleTree == nil {
+		return nil, fmt.Errorf("received nil Merkle tree from %s", targetNode.ID)
+	}
+
+	fmt.Printf("✅ Successfully fetched Merkle tree from %s (%d keys)\n", 
+		targetNode.ID, response.MerkleTree.KeyCount)
+
+	return response.MerkleTree, nil
 }
 
 // HandleWebSocket handles WebSocket connections (keeping the existing method name)

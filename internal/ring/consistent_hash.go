@@ -37,6 +37,12 @@ func (chr *ConsistentHashRing) AddNode(n *node.Node) {
 	chr.mu.Lock()
 	defer chr.mu.Unlock()
 
+	// Check if node already exists
+	if _, exists := chr.nodes[n.ID]; exists {
+		fmt.Printf("⚠️  Node %s already exists in ring, skipping duplicate add\n", n.ID)
+		return
+	}
+
 	chr.nodes[n.ID] = n
 
 	// Add virtual nodes for this physical node

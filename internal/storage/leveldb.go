@@ -103,6 +103,40 @@ func (s *LevelDBStorage) Put(key, value string) error {
 	return nil
 }
 
+// PutReplicated stores a key-value pair from replication without creating a new event
+func (s *LevelDBStorage) PutReplicated(key, value string, sourceEvent *Event) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Use the source event instead of creating a new one
+	storageValue := StorageValue{
+		Value:     value,
+		Timestamp: time.Now().Unix(),
+		Version:   1,
+		Metadata: map[string]string{
+			"node_id":      sourceEvent.NodeID,
+			"event_id":     sourceEvent.ID,
+			"vector_clock": sourceEvent.VectorClock.String(),
+			"replicated":   "true", // Mark as replicated
+		},
+	}
+
+	// Serialize and store
+	data, err := json.Marshal(storageValue)
+	if err != nil {
+		return err
+	}
+
+	err = s.db.Put([]byte(key), data, nil)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("📦 PUT-REPLICATED: %s = %s (source event: %s from %s)\n", 
+		key, value, sourceEvent.ID, sourceEvent.NodeID)
+	return nil
+}
+
 // Get retrieves a value by key with vector clock event logging
 func (s *LevelDBStorage) Get(key string) (*StorageValue, error) {
 	s.mu.RLock()
@@ -143,6 +177,21 @@ func (s *LevelDBStorage) Delete(key string) error {
 	}
 
 	fmt.Printf("🗑️ DELETE %s [%s] at event %s\n", key, event.VectorClock.String(), event.ID)
+	return nil
+}
+
+// DeleteReplicated removes a key-value pair from replication without creating a new event
+func (s *LevelDBStorage) DeleteReplicated(key string, sourceEvent *Event) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	err := s.db.Delete([]byte(key), nil)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("🗑️ DELETE-REPLICATED: %s (source event: %s from %s)\n", 
+		key, sourceEvent.ID, sourceEvent.NodeID)
 	return nil
 }
 
