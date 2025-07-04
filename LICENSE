@@ -1,21 +1,22 @@
-MIT License
+Collaborative Source License (CSL)
 
-Copyright (c) 2025 Aryan Bagade
+Copyright (c) 2025 Aryan Rajesh Bagade
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Permission is hereby granted to any individual to view and contribute to this codebase
+through pull requests, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. No part of this codebase may be copied, reproduced, distributed, sublicensed, or used
+   in any project, whether commercial or non-commercial, without explicit written
+   permission from the copyright holder.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. This repository is not open source. Contributions are welcome for improving the
+   project through GitHub pull requests. All submitted contributions become the joint
+   intellectual property of the original author and the contributor upon acceptance.
+
+3. Claiming authorship or redistribution of this code under a different name or license
+   is strictly prohibited.
+
+4. The code is provided for educational and collaborative improvement purposes only.
+
+Contact: aryan@aryanbagade.com
+Website: https://aryanbagade.com
