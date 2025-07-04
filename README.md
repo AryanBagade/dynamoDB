@@ -4,7 +4,7 @@
 [![Go](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org/)
 [![React](https://img.shields.io/badge/React-18-blue.svg)](https://reactjs.org/)
 [![Status](https://img.shields.io/badge/Status-Production%20Ready-green.svg)]()
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-CSL-yellow.svg)](LICENSE)
 
 > **A production-grade distributed database that rivals Amazon DynamoDB, Apache Cassandra, and Riak in sophisticated distributed systems architecture. Features enterprise-level gossip protocol, automatic horizontal scaling, and zero-downtime operations.**
 
@@ -312,7 +312,7 @@ POST /gossip/leave        # Graceful node departure
 
 ## 📜 **License**
 
-MIT License - Feel free to learn from and build upon this enterprise-grade implementation.
+Collaborative Source License (CSL) - View the LICENSE file for usage terms and restrictions.
 
 ---
 
