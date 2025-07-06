@@ -278,12 +278,31 @@ func (gm *GossipManager) selectRandomPeers(count int) []*PeerInfo {
 func (gm *GossipManager) prepareGossipData() map[string]interface{} {
 	// Increment our heartbeat
 	ourPeer := gm.peers[gm.currentNode.ID]
-	ourPeer.HeartbeatSeq++
-	ourPeer.LastSeen = time.Now()
+	if ourPeer != nil {
+		ourPeer.HeartbeatSeq++
+		ourPeer.LastSeen = time.Now()
+	}
+
+	// Create safe copies without nil pointers
+	safePeers := make(map[string]*PeerInfo)
+	for k, v := range gm.peers {
+		if v != nil {
+			peerCopy := *v
+			safePeers[k] = &peerCopy
+		}
+	}
+
+	safeRumors := make(map[string]*Rumor)
+	for k, v := range gm.rumors {
+		if v != nil {
+			rumorCopy := *v
+			safeRumors[k] = &rumorCopy
+		}
+	}
 
 	data := map[string]interface{}{
-		"peers":  gm.peers,
-		"rumors": gm.rumors,
+		"peers":  safePeers,
+		"rumors": safeRumors,
 		"sender": gm.currentNode.ID,
 	}
 

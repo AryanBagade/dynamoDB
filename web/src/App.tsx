@@ -8,8 +8,11 @@ import { LiveStats } from './components/LiveStats';
 import { DataOperations } from './components/DataOperations';
 import { VectorClockTimeline } from './components/VectorClockTimeline';
 import MerkleTreeView from './components/MerkleTreeView';
-import { useWebSocket } from './hooks/useWebSocket';
-import { Zap, Database, Network, BarChart3, Clock, TreePine } from 'lucide-react';
+import { DemoMode } from './components/DemoMode';
+import { ClusterTopology } from './components/ClusterTopology';
+import { PerformanceDashboard } from './components/PerformanceDashboard';
+import { useResilientWebSocket } from './hooks/useResilientWebSocket';
+import { Zap, Database, Network, BarChart3, Clock, TreePine, Play, Activity } from 'lucide-react';
 
 const GlobalStyle = createGlobalStyle`
   * {
@@ -148,18 +151,19 @@ const Tab = styled(motion.button)<{ active: boolean }>`
   }
 `;
 
-type ViewMode = 'ring' | 'replication' | 'vector-clocks' | 'merkle' | 'stats';
+type ViewMode = 'ring' | 'replication' | 'vector-clocks' | 'merkle' | 'stats' | 'topology' | 'performance' | 'demo';
 
 function App() {
-  const [viewMode, setViewMode] = useState<ViewMode>('ring');
+  const [viewMode, setViewMode] = useState<ViewMode>('demo');
   const [merkleData, setMerkleData] = useState<any>(null);
   const { 
     isConnected, 
     nodes, 
     ringData, 
     replicationData, 
-    lastOperation 
-  } = useWebSocket('ws://localhost:8081/ws');
+    lastOperation,
+    connectionStatus
+  } = useResilientWebSocket();
 
   // Fetch Merkle tree data when switching to Merkle view
   useEffect(() => {
@@ -181,8 +185,11 @@ function App() {
   };
 
   const tabs = [
+    { id: 'demo' as ViewMode, label: 'Demo Mode', icon: Play },
+    { id: 'topology' as ViewMode, label: 'Cluster Topology', icon: Network },
+    { id: 'performance' as ViewMode, label: 'Performance', icon: Activity },
     { id: 'ring' as ViewMode, label: 'Hash Ring', icon: Database },
-    { id: 'replication' as ViewMode, label: 'Replication', icon: Network },
+    { id: 'replication' as ViewMode, label: 'Replication', icon: Zap },
     { id: 'vector-clocks' as ViewMode, label: 'Vector Clocks', icon: Clock },
     { id: 'merkle' as ViewMode, label: 'Merkle Trees', icon: TreePine },
     { id: 'stats' as ViewMode, label: 'Live Stats', icon: BarChart3 },
@@ -190,6 +197,12 @@ function App() {
 
   const renderMainContent = () => {
     switch (viewMode) {
+      case 'demo':
+        return <DemoMode onOperationExecute={(op) => console.log('Demo operation:', op)} />;
+      case 'topology':
+        return <ClusterTopology nodes={nodes} />;
+      case 'performance':
+        return <PerformanceDashboard nodes={nodes} />;
       case 'ring':
         return <HashRingVisualization nodes={nodes} ringData={ringData} />;
       case 'replication':
@@ -201,7 +214,7 @@ function App() {
       case 'stats':
         return <LiveStats nodes={nodes} ringData={ringData} />;
       default:
-        return <HashRingVisualization nodes={nodes} ringData={ringData} />;
+        return <DemoMode onOperationExecute={(op) => console.log('Demo operation:', op)} />;
     }
   };
 
@@ -219,9 +232,10 @@ function App() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 300 }}
+            title={connectionStatus}
           >
             <StatusDot status={isConnected ? 'connected' : 'disconnected'} />
-            {isConnected ? 'Connected' : 'Disconnected'}
+            {isConnected ? 'Connected' : 'Fallback Mode'}
           </StatusBadge>
         </Header>
 
@@ -264,7 +278,69 @@ function App() {
         </MainContent>
 
         <RightPanel>
-          {/* Right panel content will be added based on current view */}
+          {viewMode === 'demo' && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                padding: '20px',
+                borderRadius: '15px',
+                border: '1px solid rgba(255, 255, 255, 0.1)'
+              }}
+            >
+              <h4 style={{ color: '#00ff88', marginBottom: '15px' }}>🎭 Demo Features</h4>
+              <div style={{ fontSize: '0.85rem', lineHeight: '1.6', color: 'rgba(255,255,255,0.8)' }}>
+                <p>• <strong>Auto-generated operations</strong> showing system in action</p>
+                <p>• <strong>Fault tolerance</strong> demonstrations</p>
+                <p>• <strong>Performance testing</strong> scenarios</p>
+                <p>• <strong>Vector clock causality</strong> examples</p>
+                <p>• <strong>Real-time visualization</strong> of distributed operations</p>
+              </div>
+            </motion.div>
+          )}
+          {viewMode === 'topology' && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                padding: '20px',
+                borderRadius: '15px',
+                border: '1px solid rgba(255, 255, 255, 0.1)'
+              }}
+            >
+              <h4 style={{ color: '#00ccff', marginBottom: '15px' }}>🌐 Network Topology</h4>
+              <div style={{ fontSize: '0.85rem', lineHeight: '1.6', color: 'rgba(255,255,255,0.8)' }}>
+                <p>• <strong>Live node connections</strong> with animated data flow</p>
+                <p>• <strong>Gossip protocol</strong> message propagation</p>
+                <p>• <strong>Replication paths</strong> visualization</p>
+                <p>• <strong>Node health indicators</strong> with load metrics</p>
+                <p>• <strong>Network latency</strong> and throughput stats</p>
+              </div>
+            </motion.div>
+          )}
+          {viewMode === 'performance' && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                padding: '20px',
+                borderRadius: '15px',
+                border: '1px solid rgba(255, 255, 255, 0.1)'
+              }}
+            >
+              <h4 style={{ color: '#ffaa00', marginBottom: '15px' }}>📊 Performance Metrics</h4>
+              <div style={{ fontSize: '0.85rem', lineHeight: '1.6', color: 'rgba(255,255,255,0.8)' }}>
+                <p>• <strong>Real-time operations</strong> per second tracking</p>
+                <p>• <strong>Latency percentiles</strong> (P50, P95, P99)</p>
+                <p>• <strong>Throughput distribution</strong> by operation type</p>
+                <p>• <strong>Node utilization</strong> (CPU, Memory, Network)</p>
+                <p>• <strong>System health</strong> and error rate monitoring</p>
+              </div>
+            </motion.div>
+          )}
         </RightPanel>
       </AppContainer>
     </>

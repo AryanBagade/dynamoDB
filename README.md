@@ -29,19 +29,38 @@
 git clone https://github.com/AryanBagade/dynamoDB.git
 cd dynamoDB
 
-# Start the distributed cluster
+# Start the distributed cluster (IMPORTANT: Follow bootstrap sequence)
+# Terminal 1 - Bootstrap node (starts alone)
 go run cmd/server/main.go --node-id=node-1 --port=8081 --data-dir=./data/node-1
+
+# Terminal 2 - Wait 5 seconds, then start node-2
 go run cmd/server/main.go --node-id=node-2 --port=8082 --data-dir=./data/node-2 --seed-node=localhost:8081
+
+# Terminal 3 - Wait 5 seconds, then start node-3
 go run cmd/server/main.go --node-id=node-3 --port=8083 --data-dir=./data/node-3 --seed-node=localhost:8081
 
 # Launch the real-time dashboard
 cd web && npm install && npm start
 ```
 
+### 📚 **Important: Read Cluster Operations Guide**
+For production deployment, troubleshooting, and advanced cluster management:
+**👉 [CLUSTER_OPERATIONS.md](./CLUSTER_OPERATIONS.md)**
+
 ### 🌐 **Access Points**
 - **🎨 Real-time Dashboard**: http://localhost:3000
 - **📡 Node APIs**: http://localhost:8081, :8082, :8083
 - **🗣️ Gossip Protocol**: http://localhost:808*/gossip/*
+
+### 🔄 **Node Recovery (Production Feature)**
+Any node can rejoin using ANY alive node as seed:
+```bash
+# If node-1 fails, restart using node-2 as seed
+go run cmd/server/main.go --node-id=node-1 --port=8081 --data-dir=./data/node-1 --seed-node=localhost:8082
+
+# If node-2 fails, restart using node-3 as seed  
+go run cmd/server/main.go --node-id=node-2 --port=8082 --data-dir=./data/node-2 --seed-node=localhost:8083
+```
 
 ---
 

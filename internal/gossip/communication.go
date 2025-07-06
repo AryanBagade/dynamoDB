@@ -24,6 +24,7 @@ func (gm *GossipManager) sendGossip(peer *PeerInfo, data map[string]interface{})
 	jsonData, err := json.Marshal(message)
 	if err != nil {
 		fmt.Printf("❌ Failed to marshal gossip message for %s: %v\n", peer.NodeID, err)
+		fmt.Printf("❌ Message data: %+v\n", message)
 		return
 	}
 
