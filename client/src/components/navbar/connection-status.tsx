@@ -1,31 +1,21 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
+import { useWebSocket } from "@/hooks/useWebSocket"
 
 type ConnectionStatus = "online" | "fallback" | "offline"
 
 export function ConnectionStatus() {
-  const [status, setStatus] = useState<ConnectionStatus>("offline")
-
-  // Simulate connection status changes
-  useEffect(() => {
-    const checkStatus = () => {
-      const random = Math.random()
-      if (random > 0.2) {
-        setStatus("offline")
-      } else if (random > 0.6) {
-        setStatus("fallback")
-      } else {
-        setStatus("online")
-      }
-    }
-
-    checkStatus()
-    const interval = setInterval(checkStatus, 8000) // Check every 8 seconds
-
-    return () => clearInterval(interval)
-  }, [])
+  const { isConnected, isConnecting, connectionState } = useWebSocket()
+  
+  // Map WebSocket status to our display status
+  const getDisplayStatus = (): ConnectionStatus => {
+    if (isConnected) return "online"
+    if (isConnecting) return "fallback"
+    return "offline"
+  }
+  
+  const status = getDisplayStatus()
 
   const getStatusConfig = (status: ConnectionStatus) => {
     switch (status) {
@@ -59,9 +49,16 @@ export function ConnectionStatus() {
   const config = getStatusConfig(status)
 
   return (
-    <Badge variant={config.variant} className={`gap-1.5 ${config.className}`}>
+    <Badge 
+      variant={config.variant} 
+      className={`gap-1.5 ${config.className}`}
+      title={`WebSocket: ${connectionState.status} | Endpoint: ${connectionState.endpoint || 'None'}`}
+    >
       <div className={`h-2 w-2 rounded-full ${config.dotColor} ${config.animation}`} />
       {config.text}
+      {connectionState.reconnectAttempts > 0 && (
+        <span className="text-xs">({connectionState.reconnectAttempts})</span>
+      )}
     </Badge>
   )
 } 

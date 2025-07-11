@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { ThemeProvider } from '@/components/providers/theme-provider'
+import { QueryProvider } from '@/components/providers/query-provider'
 import { AppSidebar } from "@/components/sidebar/app-sidebar"
 import { TopNavbar } from "@/components/navbar/top-navbar"
 import {
@@ -67,8 +68,9 @@ function Dashboard() {
 function App() {
   return (
     <BrowserRouter>
-      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        <SidebarProvider>
+      <QueryProvider>
+        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+          <SidebarProvider>
           <AppSidebar />
           <SidebarInset>
             <TopNavbar />
@@ -110,8 +112,9 @@ function App() {
               </Routes>
             </div>
           </SidebarInset>
-        </SidebarProvider>
-      </ThemeProvider>
+          </SidebarProvider>
+        </ThemeProvider>
+      </QueryProvider>
     </BrowserRouter>
   )
 }
