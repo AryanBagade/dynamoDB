@@ -1,8 +1,10 @@
 package gossip
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -145,35 +147,14 @@ func (gm *GossipManager) Stop() {
 
 // AddSeedNode adds a seed node for initial cluster discovery
 func (gm *GossipManager) AddSeedNode(nodeID, address string) {
-	gm.mu.Lock()
-	defer gm.mu.Unlock()
-
 	if nodeID == gm.currentNode.ID {
 		return // Don't add ourselves
 	}
 
-	gm.peers[nodeID] = &PeerInfo{
-		NodeID:       nodeID,
-		Address:      address,
-		Status:       "alive",
-		LastSeen:     time.Now(),
-		HeartbeatSeq: 0,
-		Incarnation:  0,
-	}
-
-	// Spread a rumor about this new node
-	gm.spreadRumor("node_join", map[string]interface{}{
-		"node_id": nodeID,
-		"address": address,
-	})
-
-	// Trigger the join callback for seed nodes too
-	if gm.onNodeJoin != nil {
-		fmt.Printf("🔄 Triggering join callback for seed node %s\n", nodeID)
-		gm.onNodeJoin(nodeID, address)
-	}
-
-	fmt.Printf("🌱 Added seed node: %s (%s)\n", nodeID, address)
+	fmt.Printf("🌱 Adding seed node: %s (%s)\n", nodeID, address)
+	
+	// First, actively discover the seed node's current state
+	go gm.performSeedNodeDiscovery(nodeID, address)
 }
 
 // SetCallbacks sets the callback functions for node events
@@ -361,6 +342,125 @@ func (gm *GossipManager) selfMaintenanceRoutine() {
 			}
 			gm.mu.Unlock()
 		}
+	}
+}
+
+// performSeedNodeDiscovery actively discovers and exchanges state with a seed node
+func (gm *GossipManager) performSeedNodeDiscovery(seedNodeID, seedAddress string) {
+	fmt.Printf("🔍 Performing active discovery of seed node %s\n", seedNodeID)
+	
+	// Step 1: Send a discovery request to get the seed node's current state
+	discoveryMessage := GossipMessage{
+		Type:      "seed_discovery",
+		FromNode:  gm.currentNode.ID,
+		ToNode:    seedNodeID,
+		Timestamp: time.Now().Unix(),
+		Data: map[string]interface{}{
+			"requester_address": gm.currentNode.Address,
+			"discovery_id":      generateMessageID(),
+		},
+		MessageID: generateMessageID(),
+	}
+	
+	response, err := gm.sendDiscoveryRequest(seedAddress, &discoveryMessage)
+	if err != nil {
+		fmt.Printf("❌ Seed discovery failed for %s: %v\n", seedNodeID, err)
+		// Fallback to old behavior with zero incarnation
+		gm.addSeedNodeFallback(seedNodeID, seedAddress)
+		return
+	}
+	
+	// Step 2: Process the discovery response and add the seed node with correct info
+	gm.processSeedDiscoveryResponse(response)
+	
+	// Step 3: Send our own state to the seed node so it learns about us
+	gm.introduceToSeedNode(seedNodeID, seedAddress)
+}
+
+// sendDiscoveryRequest sends a discovery request and waits for response
+func (gm *GossipManager) sendDiscoveryRequest(address string, message *GossipMessage) (*GossipMessage, error) {
+	url := fmt.Sprintf("http://%s/gossip/receive", address)
+	
+	jsonData, err := json.Marshal(message)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Use a longer timeout for discovery requests
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("discovery request failed with status %d", resp.StatusCode)
+	}
+	
+	// For now, we'll rely on the gossip protocol to exchange state through regular heartbeats
+	// The seed node will respond with its state in subsequent gossip messages
+	return nil, nil
+}
+
+// processSeedDiscoveryResponse processes the response from seed node discovery
+func (gm *GossipManager) processSeedDiscoveryResponse(response *GossipMessage) {
+	if response == nil {
+		return
+	}
+	// Discovery response will be handled through regular gossip message processing
+}
+
+// introduceToSeedNode sends our state to the seed node
+func (gm *GossipManager) introduceToSeedNode(seedNodeID, seedAddress string) {
+	fmt.Printf("🤝 Introducing ourselves to seed node %s\n", seedNodeID)
+	
+	// Send a join message to introduce ourselves
+	joinMessage := GossipMessage{
+		Type:      "join",
+		FromNode:  gm.currentNode.ID,
+		ToNode:    seedNodeID,
+		Timestamp: time.Now().Unix(),
+		Data: map[string]interface{}{
+			"node_id": gm.currentNode.ID,
+			"address": gm.currentNode.Address,
+		},
+		MessageID: generateMessageID(),
+	}
+	
+	url := fmt.Sprintf("http://%s/gossip/receive", seedAddress)
+	jsonData, _ := json.Marshal(joinMessage)
+	
+	resp, err := gm.httpClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Printf("❌ Failed to introduce to seed node %s: %v\n", seedNodeID, err)
+		return
+	}
+	defer resp.Body.Close()
+	
+	fmt.Printf("✅ Successfully introduced to seed node %s\n", seedNodeID)
+}
+
+// addSeedNodeFallback adds a seed node with fallback behavior (zero incarnation)
+func (gm *GossipManager) addSeedNodeFallback(nodeID, address string) {
+	gm.mu.Lock()
+	defer gm.mu.Unlock()
+	
+	fmt.Printf("⚠️ Using fallback method for seed node %s\n", nodeID)
+	
+	gm.peers[nodeID] = &PeerInfo{
+		NodeID:       nodeID,
+		Address:      address,
+		Status:       "alive",
+		LastSeen:     time.Now(),
+		HeartbeatSeq: 0,
+		Incarnation:  0, // Will be updated when we receive gossip from this node
+	}
+	
+	// Trigger callback
+	if gm.onNodeJoin != nil {
+		fmt.Printf("🔄 Triggering join callback for seed node %s\n", nodeID)
+		gm.onNodeJoin(nodeID, address)
 	}
 }
 

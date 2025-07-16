@@ -63,6 +63,8 @@ func (gm *GossipManager) HandleGossipMessage(message *GossipMessage) error {
 		return gm.handleProbeMessage(message)
 	case "probe_response":
 		return gm.handleProbeResponse(message)
+	case "seed_discovery":
+		return gm.handleSeedDiscovery(message)
 	default:
 		fmt.Printf("⚠️ Unknown gossip message type: %s\n", message.Type)
 		return fmt.Errorf("unknown message type: %s", message.Type)
@@ -144,9 +146,16 @@ func (gm *GossipManager) updatePeerInfo(nodeID string, peerData interface{}) {
 		if peerInfo.HeartbeatSeq > existingPeer.HeartbeatSeq ||
 		   peerInfo.Incarnation > existingPeer.Incarnation {
 			
-			// Only update heartbeat and timestamp, don't override status for active peers
+			// Update heartbeat, timestamp, and incarnation
 			existingPeer.HeartbeatSeq = peerInfo.HeartbeatSeq
 			existingPeer.LastSeen = time.Now()
+			
+			// Update incarnation if it's higher (important for seed node discovery)
+			if peerInfo.Incarnation > existingPeer.Incarnation {
+				fmt.Printf("🔄 Updating incarnation for %s: %d -> %d\n", 
+					nodeID, existingPeer.Incarnation, peerInfo.Incarnation)
+				existingPeer.Incarnation = peerInfo.Incarnation
+			}
 			
 			// Only change status if we're receiving explicit status changes or if node was dead and now communicating
 			if existingPeer.Status == "dead" && peerInfo.Status == "alive" {
@@ -328,4 +337,68 @@ func (gm *GossipManager) spreadRumor(rumorType string, data map[string]interface
 
 	gm.rumors[rumorID] = rumor
 	fmt.Printf("📢 Created rumor: %s (type: %s)\n", rumorID, rumorType)
+}
+
+// handleSeedDiscovery processes seed discovery requests
+func (gm *GossipManager) handleSeedDiscovery(message *GossipMessage) error {
+	fmt.Printf("🔍 Received seed discovery from %s\n", message.FromNode)
+	
+	// Add the requesting node to our peer list with correct incarnation
+	if requesterAddress, ok := message.Data["requester_address"].(string); ok {
+		gm.peers[message.FromNode] = &PeerInfo{
+			NodeID:       message.FromNode,
+			Address:      requesterAddress,
+			Status:       "alive",
+			LastSeen:     time.Now(),
+			HeartbeatSeq: 0,
+			Incarnation:  time.Now().Unix(), // Use current time as incarnation
+		}
+		
+		fmt.Printf("📝 Added discovering node %s to peer list with incarnation %d\n", 
+			message.FromNode, gm.peers[message.FromNode].Incarnation)
+		
+		// Trigger the join callback
+		if gm.onNodeJoin != nil {
+			fmt.Printf("🔄 Triggering join callback for discovering node %s\n", message.FromNode)
+			gm.onNodeJoin(message.FromNode, requesterAddress)
+		}
+		
+		// Send our current state back to the requester immediately
+		go gm.sendStateToRequester(message.FromNode, requesterAddress)
+	}
+	
+	return nil
+}
+
+// sendStateToRequester sends our current state to a node that performed seed discovery
+func (gm *GossipManager) sendStateToRequester(nodeID, address string) {
+	fmt.Printf("📤 Sending current state to discovering node %s\n", nodeID)
+	
+	// Prepare our current gossip data
+	gossipData := gm.prepareGossipData()
+	
+	stateMessage := GossipMessage{
+		Type:      "heartbeat", // Use heartbeat to send our state
+		FromNode:  gm.currentNode.ID,
+		ToNode:    nodeID,
+		Timestamp: time.Now().Unix(),
+		Data:      gossipData,
+		MessageID: generateMessageID(),
+	}
+	
+	url := fmt.Sprintf("http://%s/gossip/receive", address)
+	jsonData, err := json.Marshal(stateMessage)
+	if err != nil {
+		fmt.Printf("❌ Failed to marshal state message for %s: %v\n", nodeID, err)
+		return
+	}
+	
+	resp, err := gm.httpClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Printf("❌ Failed to send state to %s: %v\n", nodeID, err)
+		return
+	}
+	defer resp.Body.Close()
+	
+	fmt.Printf("✅ State sent to discovering node %s\n", nodeID)
 }
