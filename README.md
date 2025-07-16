@@ -1,12 +1,14 @@
 # 🌐 Enterprise-Grade Distributed Key-Value Store
-### Production-Ready Database with Gossip Protocol & Horizontal Scaling
+### Production-Ready Database with Gossip Protocol, Vector Clocks & Real-time Visualization
 
 [![Go](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org/)
 [![React](https://img.shields.io/badge/React-18-blue.svg)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Status](https://img.shields.io/badge/Status-Production%20Ready-green.svg)]()
+[![API](https://img.shields.io/badge/API-Fully%20Documented-brightgreen.svg)](API.md)
 [![License](https://img.shields.io/badge/License-CSL-yellow.svg)](LICENSE)
 
-> **A production-grade distributed database that rivals Amazon DynamoDB, Apache Cassandra, and Riak in sophisticated distributed systems architecture. Features enterprise-level gossip protocol, automatic horizontal scaling, and zero-downtime operations.**
+> **A production-grade distributed database that rivals Amazon DynamoDB, Apache Cassandra, and Riak. Features enterprise-level gossip protocol, vector clocks for causality tracking, Merkle trees for data integrity, and a stunning real-time visualization dashboard. Complete with comprehensive API documentation.**
 
 ---
 
@@ -184,7 +186,10 @@ curl http://localhost:8083/api/v1/data/cluster:test  # ← Strong consistency
 
 ---
 
-## 📚 **API Reference - Production Ready**
+## 📚 **Complete API Documentation**
+
+### 📖 **[👉 Full API Reference - API.md](./API.md)**
+**Every single endpoint documented with examples, request/response formats, and use cases!**
 
 ### 🔥 **Core Operations**
 ```bash
@@ -196,8 +201,22 @@ DELETE /api/v1/data/{key}  # Distributed delete with consensus
 # Advanced cluster management
 GET /api/v1/status         # Node health and performance metrics
 GET /api/v1/ring          # Hash ring state and virtual nodes
-GET /api/v1/vector-clock  # Causal ordering and conflict detection
-GET /api/v1/merkle-tree   # Data integrity verification
+GET /api/v1/cluster       # Complete cluster information
+GET /api/v1/storage       # Detailed storage statistics
+```
+
+### 🌳 **Data Integrity & Causality**
+```bash
+# Merkle tree operations for data integrity
+GET /api/v1/merkle-tree                    # Get current Merkle tree
+GET /api/v1/merkle-tree/compare/{node}     # Compare trees between nodes
+POST /api/v1/merkle-tree/sync              # Sync data inconsistencies
+
+# Vector clock operations for causality tracking
+GET /api/v1/vector-clock                   # Get vector clock state
+GET /api/v1/events                         # Get causal event history
+GET /api/v1/vector-clock/compare/{node}    # Compare causality between nodes
+POST /api/v1/vector-clock/sync             # Sync vector clocks
 ```
 
 ### 🗣️ **Gossip Protocol APIs**
@@ -205,8 +224,39 @@ GET /api/v1/merkle-tree   # Data integrity verification
 # Production gossip endpoints
 GET /gossip/status        # Cluster membership and health
 GET /gossip/members       # Real-time node discovery state
+GET /gossip/rumors        # Active gossip rumors
 POST /gossip/join         # Manual cluster join operations
 POST /gossip/leave        # Graceful node departure
+POST /gossip/receive      # Internal gossip message handling
+```
+
+### 🔌 **Real-time Communication**
+```bash
+# WebSocket endpoint for live updates
+GET /ws                   # Real-time cluster state updates
+
+# Internal replication (node-to-node)
+POST /internal/replicate  # Handle replication requests
+```
+
+### 🚀 **Quick API Examples**
+```bash
+# Store data with automatic replication
+curl -X PUT http://localhost:8081/api/v1/data/user:123 \
+  -H "Content-Type: application/json" \
+  -d '{"value": "John Doe"}'
+
+# Get data from any node
+curl http://localhost:8082/api/v1/data/user:123
+
+# Check cluster health
+curl http://localhost:8081/api/v1/status
+
+# View hash ring distribution
+curl http://localhost:8081/api/v1/ring
+
+# Monitor gossip protocol
+curl http://localhost:8081/gossip/status
 ```
 
 ---
