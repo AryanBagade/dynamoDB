@@ -4,7 +4,6 @@
 [![Go](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org/)
 [![React](https://img.shields.io/badge/React-18-blue.svg)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
-[![Status](https://img.shields.io/badge/Status-Production%20Ready-green.svg)]()
 [![API](https://img.shields.io/badge/API-Fully%20Documented-brightgreen.svg)](API.md)
 [![License](https://img.shields.io/badge/License-CSL-yellow.svg)](LICENSE)
 
